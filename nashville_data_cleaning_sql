@@ -1,0 +1,169 @@
+Dataset:
+https://github.com/AlexTheAnalyst/PortfolioProjects/blob/main/Nashville%20Housing%20Data%20for%20Data%20Cleaning.xlsx
+
+
+/*
+Cleaning Data in SQL Queries
+*/
+
+--------------------------------------------------------------------------------------------------------------------------
+
+-- Standardize Date Format
+
+SELECT
+SaleDate,
+DATE(TRIM(substr(SaleDate, -4) || '-' ||
+CASE substr(SaleDate, 1, INSTR(SaleDate, ' ') - 1)
+WHEN 'January' THEN '01'
+WHEN 'February' THEN '02'
+WHEN 'March' THEN '03'
+WHEN 'April' THEN '04'
+WHEN 'May' THEN '05'
+WHEN 'June' THEN '06'
+WHEN 'July' THEN '07'
+WHEN 'August' THEN '08'
+WHEN 'September' THEN '09'
+WHEN 'October' THEN '10'
+WHEN 'November' THEN '11'
+WHEN 'December' THEN '12'
+END || '-' ||
+substr("0" || substr(SaleDate, INSTR(SaleDate, ' ') +1, INSTR(SaleDate, ',') - INSTR(SaleDate, ' ') -1),-2)
+)) as NewSaleDate
+FROM nashville_housing nh
+
+--------------------------------------------------------------------------------------------------------------------------
+
+-- Populate PropertyAddress data
+
+SELECT *
+FROM nashville_housing
+WHERE ParcelID IN (
+  SELECT ParcelID
+  FROM nashville_housing
+  GROUP BY ParcelID
+  HAVING COUNT(*) > 1
+)
+ORDER BY ParcelID;
+
+-- this select statement has shown that rows with the same ParcelID have the same PropertyAddress
+
+UPDATE nashville_housing as nh
+SET PropertyAddress = (
+SELECT PropertyAddress
+FROM nashville_housing as nh2
+WHERE nh2.ParcelID = nh.ParcelID AND nh2.PropertyAddress <> ""
+LIMIT 1
+)
+WHERE PropertyAddress LIKE ""
+
+
+--------------------------------------------------------------------------------------------------------------------------
+
+-- Breaking out Address into Individual Columns (Address, City, State)
+
+
+ALTER TABLE nashville_housing
+ADD COLUMN Address VARCHAR(255);
+
+ALTER TABLE nashville_housing
+ADD COLUMN City VARCHAR(255);
+
+ALTER TABLE nashville_housing
+ADD COLUMN State VARCHAR(255);
+
+UPDATE nashville_housing
+SET
+Address = TRIM(SUBSTR(PropertyAddress, 1, INSTR(PropertyAddress, ',') - 1)),
+    City = TRIM(SUBSTR(PropertyAddress, INSTR(PropertyAddress, ',') + 1)),
+State = TRIM(REPLACE(SUBSTR(OwnerAddress, LENGTH(OwnerAddress) - INSTR(REVERSE(OwnerAddress), ',') +1), ",", ""))
+
+-- update without where beacouse we're updating everything
+
+
+--------------------------------------------------------------------------------------------------------------------------
+
+-- Remove unnecessary column
+
+CREATE TABLE nashville_housing_new (
+    UniqueID INTEGER PRIMARY KEY,
+    ParcelID TEXT,
+    LandUse TEXT,
+    SaleDate TEXT,
+    SalePrice TEXT,
+    LegalReference TEXT,
+    SoldAsVacant TEXT,
+    OwnerName TEXT,
+    OwnerAddress TEXT,
+    Acreage TEXT,
+    TaxDistrict TEXT,
+    LandValue TEXT,
+    BuildingValue TEXT,
+    TotalValue TEXT,
+    YearBuilt TEXT,
+    Bedrooms TEXT,
+    FullBath TEXT,
+    HalfBath TEXT,
+    Address TEXT,
+    City TEXT,
+    State TEXT
+);
+
+INSERT INTO nashville_housing_new
+SELECT
+    UniqueID,
+    ParcelID,
+    LandUse,
+    SaleDate,
+    SalePrice,
+    LegalReference,
+    SoldAsVacant,
+    OwnerName,
+    OwnerAddress,
+    Acreage,
+    TaxDistrict,
+    LandValue,
+    BuildingValue,
+    TotalValue,
+    YearBuilt,
+    Bedrooms,
+    FullBath,
+    HalfBath,
+    Address,
+    City,
+    State
+FROM nashville_housing;
+
+
+DROP TABLE nashville_housing;
+
+ALTER TABLE nashville_housing_new RENAME TO nashville_housing;
+
+
+
+
+
+--------------------------------------------------------------------------------------------------------------------------
+
+
+-- Change Y and N to Yes and No in "Sold as Vacant" field
+
+UPDATE nashville_housing
+SET SoldAsVacant = CASE
+    WHEN SoldAsVacant = 'Y' THEN 'Yes'
+    WHEN SoldAsVacant = 'N' THEN 'No'
+    ELSE SoldAsVacant
+END
+
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-- Remove Duplicates
+
+-- 56477 != 56271
+
+CREATE TABLE nashville_housing_temp AS SELECT DISTINCT * FROM nashville_housing;
+
+DROP TABLE nashville_housing;
+
+ALTER TABLE nashville_housing_temp RENAME TO nashville_housing;
